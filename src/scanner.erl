@@ -54,12 +54,13 @@ parse_char(Chars, Cursor, Acc) ->
    {Token, Rest} = toke(Chars, Cursor),
    parse_char(Rest, Token#token.end_cursor, [Token|Acc]).
 
+
 % No input left. Eof token.
 toke([], Cursor) ->
    {#token{
        type         = eof,
        start_cursor = Cursor,
-       end_cursor   = ?ADV_LINE(Cursor)
+       end_cursor   = Cursor
       }, []};
 
 % Whitespace tokens.
@@ -69,29 +70,28 @@ toke([ $\s |T], Cursor) -> toke(T, ?ADV_INDEX(Cursor));
 toke([ $\t |_],      _) -> error(no_tabs_for_you);
 
 % Strings.
-toke([ $'  |T], Cursor) -> toke_path(T, Cursor);
-toke([ $"  |T], Cursor) -> toke_string(T, Cursor);
+toke([ $'  |T], Cursor) -> path(T, ?ADV_INDEX(Cursor));
+toke([ $"  |T], Cursor) -> string(T, ?ADV_INDEX(Cursor));
 
 % Identifiers.
 toke([H|T], Cursor) when ?IS_WORDSTART(H) ->
-   toke_identifier(T, Cursor, Cursor, [H]);
+   identifier(T, ?ADV_INDEX(Cursor));
 
 % Single-character tokens.
 toke([H|T], Cursor) ->
-   Token_t = case H of
-      $.  -> dot           ;
-      $:  -> colon         ;
-      $@  -> at_symbol     ;
-      $(  -> left_paren    ;
-      $)  -> right_paren   ;
-      ${  -> left_brace    ;
-      $}  -> right_brace   ;
-      $[  -> left_bracket  ;
-      $]  -> right_bracket ;
-      _   -> error(invalid_char)
-   end,
    {#token{
-       type         = Token_t,
+       type         = case H of
+                         $.  -> dot;
+                         $:  -> colon;
+                         $@  -> at_symbol;
+                         $(  -> left_paren;
+                         $)  -> right_paren;
+                         ${  -> left_brace;
+                         $}  -> right_brace;
+                         $[  -> left_bracket;
+                         $]  -> right_bracket;
+                         _   -> error(invalid_char)
+                      end,
        value        = [H],
        start_cursor = Cursor,
        end_cursor   = Cursor
@@ -104,45 +104,48 @@ strip_comment([ _ |T], Cursor) ->
    strip_comment(T, ?ADV_INDEX(Cursor)).
 
 
-toke_path(Li, Cursor) ->
-   toke_path(Li, Cursor, Cursor, []).
+path(Li, Cursor) ->
+   path(Li, Cursor, Cursor, []).
 
-toke_path([], _, _, _) ->
+path([], _, _, _) ->
    error(unterminated_path);
-toke_path([ $' |T], Start, End, Text) ->
+path([ $' |T], Start, End, Text) ->
    {#token{
        type         = path,
        value        = lists:reverse(Text),
        start_cursor = Start,
-       end_cursor   = End
+       end_cursor   = ?ADV_INDEX(End)
       }, T};
-toke_path([ $\\, $' |T], Start, End, Text) ->
-   toke_path(T, Start, ?ADV_INDEX(End), [$' |Text]);
-toke_path([ H |T], Start, End, Text) ->
-   toke_path(T, Start, ?ADV_INDEX(End), [H |Text]).
+path([ $\\, $' |T], Start, End, Text) ->
+   path(T, Start, ?ADV_INDEX(End), [$' |Text]);
+path([ H |T], Start, End, Text) ->
+   path(T, Start, ?ADV_INDEX(End), [H |Text]).
 
 
-toke_string(Li, Cursor) ->
-   toke_string(Li, Cursor, Cursor, []).
+string(Li, Cursor) ->
+   string(Li, Cursor, Cursor, []).
 
-toke_string([], _, _, _) ->
+string([], _, _, _) ->
    error(unterminated_string);
-toke_string([ $' |T], Start, End, Text) ->
+string([ $" |T], Start, End, Text) ->
    {#token{
        type         = string,
        value        = lists:reverse(Text),
        start_cursor = Start,
-       end_cursor   = End
+       end_cursor   = ?ADV_INDEX(End)
       }, T};
-toke_string([ $\\, $' |T], Start, End, Text) ->
-   toke_string(T, Start, ?ADV_INDEX(End, 2), [$' |Text]);
-toke_string([ H |T], Start, End, Text) ->
-   toke_string(T, Start, ?ADV_INDEX(End), [H |Text]).
+string([ $\\, $" |T], Start, End, Text) ->
+   string(T, Start, ?ADV_INDEX(End, 2), [$" |Text]);
+string([ H |T], Start, End, Text) ->
+   string(T, Start, ?ADV_INDEX(End), [H |Text]).
 
 
-toke_identifier([H|T], Start, End, Text) when ?IS_WORDCHAR(H) ->
-   toke_identifier(T, Start, ?ADV_INDEX(End), [H|Text]);
-toke_identifier(Rest, Start, End, Text) ->
+identifier(Li, Cursor) ->
+   identifier(Li, Cursor, Cursor, []).
+
+identifier([H|T], Start, End, Text) when ?IS_WORDCHAR(H) ->
+   identifier(T, Start, ?ADV_INDEX(End), [H|Text]);
+identifier(Rest, Start, End, Text) ->
    {#token{
        type         = identifier,
        value        = lists:reverse(Text),
